@@ -1,0 +1,10 @@
+{
+  "name": "family-secret-santa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "家庭交换礼物抽签 · Family Secret Santa — nobody draws their own family",
+  "scripts": {
+    "test": "node --test tests/santa-core.test.js"
+  },
+  "license": "MIT"
+}

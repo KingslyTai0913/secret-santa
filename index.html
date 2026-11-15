@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4b38">
+<meta name="description" content="家庭交换礼物抽签：同一家庭的人不会互相抽到 · Family Secret Santa: nobody draws their own family">
+<title>家庭交换礼物抽签 · Family Secret Santa</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="snow" aria-hidden="true"></div>
+
+<header class="app-header">
+  <div class="wrap brand">
+    <span class="brand-icon" aria-hidden="true">🎁</span>
+    <div class="brand-text">
+      <h1 class="stack"><span class="zh">家庭交换礼物抽签</span><span class="en">Family Secret Santa</span></h1>
+      <p class="event-line" id="eventLine"></p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+
+  <!-- ================= SETUP ================= -->
+  <section id="screen-setup" class="screen" hidden>
+
+    <div class="card">
+      <h2 class="card-title stack"><span class="zh">活动信息</span><span class="en">Event details</span></h2>
+      <div class="grid2">
+        <label class="field full">
+          <span class="label"><span class="zh">活动名称</span><span class="en">Event name</span></span>
+          <input id="evName" type="text" maxlength="60" placeholder="2026 家庭圣诞交换礼物 / Family Christmas 2026">
+        </label>
+        <label class="field">
+          <span class="label"><span class="zh">礼物预算</span><span class="en">Budget</span></span>
+          <input id="evBudget" type="text" maxlength="30" placeholder="例如 e.g. $30 / ¥200">
+        </label>
+        <label class="field">
+          <span class="label"><span class="zh">交换日期</span><span class="en">Exchange date</span></span>
+          <input id="evDate" type="text" maxlength="30" placeholder="例如 e.g. 12/25">
+        </label>
+        <label class="field full">
+          <span class="label"><span class="zh">备注</span><span class="en">Note</span></span>
+          <textarea id="evNote" rows="2" maxlength="200" placeholder="例如：礼物请包好，写上收礼人的名字 / e.g. Wrap it and write the receiver's name"></textarea>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title stack"><span class="zh">家庭和成员</span><span class="en">Families &amp; members</span></h2>
+        <span class="pill" id="peopleCount"></span>
+      </div>
+      <p class="hint"><span class="zh">同一个家庭的人不会互相抽到。可以一次粘贴多个名字（用逗号、顿号或换行分开）。</span><span class="en">People in the same family never draw each other. You can paste several names at once (separated by commas or new lines).</span></p>
+      <div id="demoNotice" class="notice" hidden>📝 <span class="zh">这是示例名单，可以直接点「开始抽签」试试看。正式用之前，点下面的「清空名单」，再填你们家的人。</span><span class="en">This is a sample list. Tap "Draw names" to try it out. Before the real draw, tap "Clear list" below and enter your own families.</span></div>
+      <div id="familyList" class="family-list"></div>
+      <div class="row-actions">
+        <button type="button" class="btn btn-ghost" id="addFamilyBtn">＋ <span class="zh">添加家庭</span><span class="en">Add family</span></button>
+        <button type="button" class="btn btn-link" id="demoBtn"><span class="zh">填入示例</span><span class="en">Try a demo</span></button>
+        <button type="button" class="btn btn-link" id="clearListBtn" hidden><span class="zh">清空名单</span><span class="en">Clear list</span></button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title stack"><span class="zh">规则</span><span class="en">Rules</span></h2>
+      <div class="rule locked">
+        <span class="rule-icon" aria-hidden="true">🔒</span>
+        <span class="rule-text"><strong><span class="zh">同一家庭不能互抽</span><span class="en">No drawing your own family</span></strong>
+          <small><span class="zh">一直开启</span><span class="en">Always on</span></small></span>
+      </div>
+      <label class="rule toggle">
+        <input type="checkbox" id="ruleNoSwap">
+        <span class="switch" aria-hidden="true"></span>
+        <span class="rule-text"><strong><span class="zh">避免两人互抽</span><span class="en">No swaps</span></strong>
+          <small><span class="zh">A 抽到 B，B 就不会再抽到 A</span><span class="en">If A draws B, B won't draw A</span></small></span>
+      </label>
+      <label class="rule toggle">
+        <input type="checkbox" id="ruleLoop">
+        <span class="switch" aria-hidden="true"></span>
+        <span class="rule-text"><strong><span class="zh">所有人连成一个大圈</span><span class="en">One big loop</span></strong>
+          <small><span class="zh">A→B→C→…→A，拆礼物时可以一个接一个送</span><span class="en">A→B→C→…→A, so gifts can be opened one after another</span></small></span>
+      </label>
+
+      <details class="exclusions" id="exclusionsBox">
+        <summary><span class="zh">额外限制（可选）</span><span class="en">Extra exclusions (optional)</span> <span class="pill" id="exCount" hidden></span></summary>
+        <p class="hint"><span class="zh">例如：今年不想和去年抽到同一个人。</span><span class="en">E.g. don't get the same person as last year.</span></p>
+        <div class="ex-form">
+          <select id="exGiver" aria-label="送礼人 Giver"></select>
+          <span class="ex-mid"><span class="zh">不能抽到</span><span class="en">can't draw</span></span>
+          <select id="exReceiver" aria-label="收礼人 Receiver"></select>
+          <button type="button" class="btn btn-small" id="exAddBtn"><span class="zh">添加</span><span class="en">Add</span></button>
+        </div>
+        <ul id="exList" class="ex-list"></ul>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title stack"><span class="zh">管理员密码</span><span class="en">Admin PIN</span></h2>
+      <p class="hint"><span class="zh">抽签后要输入这个密码，才能查看所有人的结果、重新抽签。不设密码的话，谁都可以点「管理员」查看。</span><span class="en">After the draw, this PIN is needed to see everyone's results or redraw. Without a PIN, anyone can open the admin page.</span></p>
+      <input id="adminPin" class="pin-input" type="password" inputmode="numeric" autocomplete="new-password" maxlength="20" placeholder="例如 e.g. 1225">
+      <p class="hint small" id="pinStatus"></p>
+    </div>
+
+    <div id="setupErrors" class="errors" role="alert"></div>
+
+    <div class="sticky-cta">
+      <button type="button" class="btn btn-primary btn-big" id="drawBtn">🎁 <span class="zh">抽签并生成链接</span><span class="en">Draw &amp; create the link</span></button>
+    </div>
+  </section>
+
+  <!-- ================= RESULTS (everyone) ================= -->
+  <section id="screen-results" class="screen" hidden>
+    <div id="sharedBanner" class="banner" hidden>
+      🎄 <span class="zh">欢迎来抽签！</span><span class="en">Welcome to the gift draw!</span>
+    </div>
+
+    <div class="card event-card" id="eventCard"></div>
+
+    <div class="card">
+      <h2 class="card-title stack"><span class="zh">你是谁？</span><span class="en">Who are you?</span></h2>
+      <p class="hint"><span class="zh">找到你的名字点一下，再按「抽签」。只点你自己的名字哦！</span><span class="en">Tap your own name, then press "Draw". Only your own name, please!</span></p>
+      <div id="viewedBox" class="viewed-box">
+        <div class="progress" aria-hidden="true"><div class="progress-bar" id="viewedBar"></div></div>
+        <p class="progress-text" id="viewedText"></p>
+      </div>
+      <div id="nameGroups" class="name-groups"></div>
+    </div>
+
+    <div class="footer-actions">
+      <button type="button" class="btn btn-ghost" id="adminBtn">🔒 <span class="zh">管理员</span><span class="en">Admin</span></button>
+      <button type="button" class="btn btn-link" id="leaveSharedBtn" hidden><span class="zh">回到我自己的抽签</span><span class="en">Back to my own draw</span></button>
+    </div>
+  </section>
+
+  <!-- ================= ADMIN ================= -->
+  <section id="screen-admin" class="screen" hidden>
+    <div class="admin-top">
+      <button type="button" class="btn btn-ghost" id="backToResultsBtn">← <span class="zh">抽签页面</span><span class="en">Draw page</span></button>
+      <span class="pill pill-admin">🔓 <span class="zh">管理员</span><span class="en">Admin</span></span>
+    </div>
+
+    <div class="card share-card" id="shareCard">
+      <h2 class="card-title stack"><span class="zh">✅ 抽签好了！把这个链接发给大家</span><span class="en">The draw is ready! Send this link to everyone</span></h2>
+      <p class="hint"><span class="zh">大家打开链接 → 选自己的名字 → 按「抽签」，就能看到要送礼物给谁。</span><span class="en">Everyone opens the link, picks their name and presses "Draw" to see who they're buying for.</span></p>
+      <div id="shareWarning" class="warn" hidden></div>
+      <div class="share-box">
+        <input id="shareLink" type="text" readonly aria-label="分享链接 Share link">
+        <button type="button" class="btn btn-small" id="copyLinkBtn"><span class="zh">复制链接</span><span class="en">Copy link</span></button>
+      </div>
+      <div class="row-actions">
+        <button type="button" class="btn btn-ghost" id="copyMessageBtn"><span class="zh">复制群消息</span><span class="en">Copy group message</span></button>
+        <button type="button" class="btn btn-ghost" id="nativeShareBtn" hidden><span class="zh">分享…</span><span class="en">Share…</span></button>
+      </div>
+    </div>
+
+    <div class="card" id="verifyCard"></div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2 class="card-title stack"><span class="zh">全部结果</span><span class="en">All results</span></h2>
+        <button type="button" class="btn btn-small" id="copyResultsBtn"><span class="zh">复制</span><span class="en">Copy</span></button>
+      </div>
+      <div class="table-wrap"><table class="result-table" id="resultTable"></table></div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title stack"><span class="zh">礼物链</span><span class="en">Gift chains</span></h2>
+      <p class="hint"><span class="zh">交换礼物时，可以按照这个顺序一个接一个送。</span><span class="en">At the party, you can hand out gifts in this order.</span></p>
+      <div id="chains" class="chains"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title stack"><span class="zh">管理</span><span class="en">Manage</span></h2>
+      <div class="manage-actions">
+        <button type="button" class="btn btn-ghost" id="redrawBtn">🔄 <span class="stack"><span class="zh">重新抽签</span><span class="en">Redraw</span></span></button>
+        <button type="button" class="btn btn-ghost" id="editSetupBtn">✏️ <span class="stack"><span class="zh">修改名单和规则</span><span class="en">Edit names &amp; rules</span></span></button>
+        <button type="button" class="btn btn-ghost" id="resetViewedBtn">👀 <span class="stack"><span class="zh">清除「已查看」标记</span><span class="en">Clear "viewed" marks</span></span></button>
+        <button type="button" class="btn btn-danger" id="resetAllBtn">🗑 <span class="stack"><span class="zh">全部清空，重新开始</span><span class="en">Start over</span></span></button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="app-footer wrap">
+  <span class="zh">所有资料只保存在这台设备上，不会上传。</span><span class="en">Everything stays on this device — nothing is uploaded.</span>
+</footer>
+
+<!-- Drawing animation -->
+<div id="drawing" class="overlay overlay-draw" hidden>
+  <div class="draw-box">
+    <div class="draw-gift" aria-hidden="true">🎁</div>
+    <div class="draw-name" id="drawName">…</div>
+    <p class="stack"><span class="zh">正在抽签…</span><span class="en">Drawing names…</span></p>
+  </div>
+</div>
+
+<!-- Generic modal -->
+<div id="modal" class="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="santa-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
