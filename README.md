@@ -40,8 +40,8 @@ No install, no sign-up, no server. Works on phones, computers and inside WeChat.
    Set an admin PIN (recommended) → tap **Draw & create the link**.
 4. **发链接**：管理员页面最上面就是链接，点「复制群消息」发到家庭群。⚠️ 网页要先放到网上（见下一节），直接双击打开的本地文件生成的链接，别人打不开。
    **Send the link** at the top of the admin page to the family chat. ⚠️ The page must be online first (next section).
-5. **每个人**：打开链接 → 选自己的名字 → 按 **🎲 抽签** → 看到要送礼物给谁。
-   **Everyone**: open the link → pick your name → press **Draw** → see who you're buying for.
+5. **每个人**：打开链接 → 选自己的名字 → 在 **🎄 圣诞树**上挑一个签 → 签翻过来，看到要送礼物给谁。
+   **Everyone**: open the link → pick your name → pick a tag from the **Christmas tree** → it flips over to show who you're buying for.
 6. **管理员检查**：管理员页面会显示「✓ 全部符合规则」和每个人抽到谁的完整列表。以后想再看，点「🔒 管理员」输入密码。
    **Admin check**: the admin page shows "✓ Everything checks out" and the full list. Later, open "Admin" with the PIN.
 

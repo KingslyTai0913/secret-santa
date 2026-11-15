@@ -98,9 +98,10 @@
 
   /* ================= UI primitives ================= */
   let modalResolve = null;
-  function openModal(html, onOpen) {
+  function openModal(html, onOpen, cls) {
     closeModal(undefined);
     return new Promise((resolve) => {
+      $('modal').firstElementChild.className = 'modal' + (cls ? ' ' + cls : '');
       $('modalContent').innerHTML = html;
       $('modal').hidden = false;
       modalResolve = resolve;
@@ -200,12 +201,15 @@
   }
 
   /* ================= routing ================= */
-  const SCREENS = ['setup', 'results', 'admin'];
+  const SCREENS = ['setup', 'results', 'tree', 'admin'];
   function showScreen(name) {
     if (name !== 'admin') adminUnlocked = false; // re-lock whenever admin page is left
     SCREENS.forEach((s) => { $('screen-' + s).hidden = s !== name; });
+    // the pages family members see get the snowy Christmas-night scene
+    document.body.classList.toggle('scene', name === 'results' || name === 'tree');
     if (name === 'setup') renderSetup();
     if (name === 'results') renderResults();
+    if (name === 'tree') renderTree();
     if (name === 'admin') renderAdmin();
     renderHeader(name);
     window.scrollTo(0, 0);
@@ -624,10 +628,10 @@
 
   $('nameGroups').addEventListener('click', (e) => {
     const b = e.target.closest('.name-btn');
-    if (b) revealFlow(Number(b.dataset.pi));
+    if (b) chooseName(Number(b.dataset.pi));
   });
 
-  async function revealFlow(pi) {
+  async function chooseName(pi) {
     const v = currentView();
     const name = esc(v.people[pi].name);
     if (getViewed(v.id).includes(pi)) {
@@ -640,57 +644,97 @@
       if (again) showReveal(v, pi, false);
       return;
     }
-    const go = await confirmModal({
-      emoji: '🎁',
-      title: bi(`你好，${name}！`, `Hi ${name}!`),
-      text: bi('按下面的按钮，抽出你要送礼物的人。抽之前确认旁边没有人偷看哦！', "Press the button to draw the person you'll give a gift to. Make sure nobody's peeking!"),
-      ok: '🎲 ' + bi('抽签！', 'Draw!'),
-      cancel: bi(`我不是 ${name}`, `I'm not ${name}`)
-    });
-    if (go) showReveal(v, pi, true);
+    treePerson = pi;
+    showScreen('tree');
   }
 
   /**
-   * Show who person pi gives to. The pairing was fixed when the organiser created the draw
-   * (that is what guarantees everyone gets a valid match); "Draw" just spins names, then reveals it.
+   * Show who person pi gives to, on a red-and-gold card. The pairing was fixed when the organiser
+   * created the draw (that is what guarantees everyone gets a valid match).
+   * animate: the card starts face down ("签") and flips over.
    */
   function showReveal(v, pi, animate) {
     const name = esc(v.people[pi].name);
     const rp = v.people[v.assignment[pi]];
     markViewed(v.id, pi);
     const meta = eventMetaHtml(v.event);
-    const resultHtml = `
-      <div class="reveal-gift" aria-hidden="true">🎁</div>
+    const flip = animate && !reducedMotion;
+    openModal(`
       <p class="reveal-intro" id="modalTitle">${bi(`${name}，你要送礼物给`, `${name}, you're the Secret Santa for`)}</p>
-      <div class="reveal-name">${esc(rp.name)}</div>
-      <div class="reveal-family ${famClass(rp.family)}"><span class="tag">${famHtml(v.familyNames, rp.family)}</span></div>
+      <div class="flip${flip ? '' : ' flipped'}" id="revealFlip">
+        <div class="flip-inner">
+          <div class="flip-face flip-front" aria-hidden="true">签</div>
+          <div class="flip-face flip-back">
+            <div class="reveal-name">${esc(rp.name)}</div>
+            <div class="reveal-family ${famClass(rp.family)}"><span class="tag">${famHtml(v.familyNames, rp.family)}</span></div>
+          </div>
+        </div>
+      </div>
       ${meta ? `<div class="reveal-meta">${meta}</div>` : ''}
       <p class="reveal-secret">${bi('🤫 记住了就关掉，不要告诉别人哦！', '🤫 Remember it, close this, and keep it a secret!')}</p>
-      <div class="modal-actions"><button type="button" class="btn btn-ok btn-big" data-result="ok">${bi('记住了，关掉', 'Got it, close')}</button></div>`;
-    if (!animate || reducedMotion) {
-      openModal(resultHtml).then(() => renderResults());
-      confetti();
-      return;
-    }
-    openModal(`
-      <div class="draw-gift in-modal" aria-hidden="true">🎁</div>
-      <p class="reveal-intro" id="modalTitle">${bi('正在抽签…', 'Drawing…')}</p>
-      <div class="reveal-name spinning" id="spinName">…</div>`).then(() => renderResults());
-    const me = v.people[pi];
-    const pool = v.people.filter((p) => p.family !== me.family);
-    const start = Date.now();
-    const tick = setInterval(() => {
-      const el = document.getElementById('spinName');
-      if (!el) return clearInterval(tick); // closed early
-      el.textContent = pool[Math.floor(Math.random() * pool.length)].name;
-      if (Date.now() - start < 1600) return;
-      clearInterval(tick);
-      $('modalContent').innerHTML = resultHtml; // same modal, so its promise still resolves on close
-      const b = $('modalContent').querySelector('[data-result="ok"]');
-      if (b) b.focus({ preventScroll: true });
-      confetti();
-    }, 90);
+      <div class="modal-actions"><button type="button" class="btn btn-ok btn-big" data-result="ok">${bi('记住了，关掉', 'Got it, close')}</button></div>`,
+    (root) => {
+      if (!flip) return confetti();
+      setTimeout(() => {
+        const f = root.querySelector('#revealFlip');
+        if (f) { f.classList.add('flipped'); confetti(); }
+      }, 450);
+    }, 'modal-reveal').then(() => showScreen('results'));
   }
+
+  /* ================= CHRISTMAS TREE ================= */
+  let treePerson = null;
+
+  /** Hanging spots for n tags: rows of 2, 3, 4, … inside the tree's triangle, in % of the tree box. */
+  function treeSpots(n) {
+    let rows = 1;
+    while ((rows * (rows + 3)) / 2 < n) rows++;
+    const caps = Array.from({ length: rows }, (_, i) => i + 2);
+    const total = caps.reduce((a, b) => a + b, 0);
+    const exact = caps.map((c) => (c * n) / total);
+    const counts = exact.map(Math.floor);
+    let left = n - counts.reduce((a, b) => a + b, 0);
+    exact.map((e, i) => [e - Math.floor(e), i]).sort((a, b) => b[0] - a[0])
+      .forEach(([, i]) => { if (left > 0) { counts[i]++; left--; } });
+    const spots = [];
+    counts.forEach((c, r) => {
+      const y = rows === 1 ? 45 : 20 + (r * 50) / (rows - 1); // where the string hangs from
+      const half = ((y + 6 - 11) / 71) * 38.75 * 0.88; // the tree's half-width at the tag
+      for (let k = 0; k < c; k++) spots.push({ x: c === 1 ? 50 : 50 - half + (2 * half * k) / (c - 1), y });
+    });
+    return spots;
+  }
+
+  function renderTree() {
+    const v = currentView();
+    const me = v && v.people[treePerson];
+    if (!me) return showScreen('results');
+    $('treeName').textContent = me.name;
+    $('treeNameEn').textContent = me.name;
+    // one tag per person in the other families (the people you could get), kept to a size that fits
+    const n = Math.max(3, Math.min(21, v.people.filter((p) => p.family !== me.family).length));
+    const colors = ['t-red', 't-gold', 't-white', 't-blue'];
+    $('treeTags').className = 'tree-tags';
+    $('treeTags').innerHTML = treeSpots(n).map((s, i) => `
+      <button type="button" class="hang-tag ${colors[i % colors.length]}" data-tag="${i}"
+        style="left:${s.x.toFixed(1)}%;top:${s.y.toFixed(1)}%;--d:${(2.2 + Math.random() * 1.8).toFixed(2)}s;--delay:-${(Math.random() * 3).toFixed(2)}s"
+        aria-label="签 ${i + 1} · Tag ${i + 1}"><span class="string"></span><span class="tag-body">签</span></button>`).join('');
+  }
+
+  $('treeTags').addEventListener('click', (e) => {
+    const tag = e.target.closest('.hang-tag');
+    const box = $('treeTags');
+    if (!tag || box.classList.contains('picking')) return;
+    box.classList.add('picking');
+    // fly the chosen tag to the middle of the screen, then turn it over
+    const r = tag.getBoundingClientRect();
+    tag.style.setProperty('--tx', (window.innerWidth / 2 - (r.left + r.width / 2)) + 'px');
+    tag.style.setProperty('--ty', (window.innerHeight / 2 - (r.top + r.height / 2)) + 'px');
+    tag.classList.add('picked');
+    // Whichever tag is picked holds this person's match, fixed when the organiser created the draw.
+    setTimeout(() => showReveal(currentView(), treePerson, true), reducedMotion ? 60 : 750);
+  });
+  $('treeBackBtn').addEventListener('click', () => showScreen('results'));
 
   $('adminBtn').addEventListener('click', async () => {
     const v = currentView();
@@ -821,8 +865,8 @@
   function shareMessage(v) {
     const title = v.event.name || '家庭交换礼物 Family Secret Santa';
     return `🎁 ${title}\n` +
-      '抽签结果出来啦！点开链接，找到自己的名字，看看你要送礼物给谁。只点自己的名字哦，不要偷看别人的！\n' +
-      "The Secret Santa draw is ready! Open the link and tap YOUR name to see who you're buying for. No peeking at others!\n" +
+      '🎄 来抽签啦！点开链接 → 选自己的名字 → 在圣诞树上挑一个签，看看你要送礼物给谁。只点自己的名字哦！\n' +
+      "🎄 Time to draw! Open the link, tap YOUR name and pick a tag from the Christmas tree to see who you're buying for. Only your own name, please!\n" +
       shareLink(v);
   }
   function renderShare(v) {
@@ -928,6 +972,13 @@
   });
 
   /* ================= start ================= */
+  function buildLights() {
+    const n = Math.max(12, Math.round(window.innerWidth / 30));
+    if ($('lights').children.length !== n) $('lights').innerHTML = '<span class="bulb"></span>'.repeat(n);
+  }
+  buildLights();
+  window.addEventListener('resize', buildLights);
+
   // A preview page can set window.SANTA_START_WITH_DEMO so first-time viewers see a filled-in example.
   if (window.SANTA_START_WITH_DEMO && !state.draw && !state.families.some((f) => f.members.length)) fillDemo();
   route();

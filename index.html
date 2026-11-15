@@ -7,6 +7,9 @@
 <meta name="description" content="家庭交换礼物抽签：同一家庭的人不会互相抽到 · Family Secret Santa: nobody draws their own family">
 <title>家庭交换礼物抽签 · Family Secret Santa</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=ZCOOL+KuaiLe&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -20,6 +23,7 @@
       <p class="event-line" id="eventLine"></p>
     </div>
   </div>
+  <div class="lights" id="lights" aria-hidden="true"></div>
 </header>
 
 <main class="wrap" id="main">
@@ -112,7 +116,7 @@
   </section>
 
   <!-- ================= RESULTS (everyone) ================= -->
-  <section id="screen-results" class="screen" hidden>
+  <section id="screen-results" class="screen scene-screen" hidden>
     <div id="sharedBanner" class="banner" hidden>
       🎄 <span class="zh">欢迎来抽签！</span><span class="en">Welcome to the gift draw!</span>
     </div>
@@ -121,7 +125,7 @@
 
     <div class="card">
       <h2 class="card-title stack"><span class="zh">你是谁？</span><span class="en">Who are you?</span></h2>
-      <p class="hint"><span class="zh">找到你的名字点一下，再按「抽签」。只点你自己的名字哦！</span><span class="en">Tap your own name, then press "Draw". Only your own name, please!</span></p>
+      <p class="hint"><span class="zh">点你自己的名字，再到圣诞树上挑一个签 🎄 只点你自己的哦！</span><span class="en">Tap your own name, then pick a tag from the Christmas tree. Only your own name, please!</span></p>
       <div id="viewedBox" class="viewed-box">
         <div class="progress" aria-hidden="true"><div class="progress-bar" id="viewedBar"></div></div>
         <p class="progress-text" id="viewedText"></p>
@@ -132,6 +136,57 @@
     <div class="footer-actions">
       <button type="button" class="btn btn-ghost" id="adminBtn">🔒 <span class="zh">管理员</span><span class="en">Admin</span></button>
       <button type="button" class="btn btn-link" id="leaveSharedBtn" hidden><span class="zh">回到我自己的抽签</span><span class="en">Back to my own draw</span></button>
+    </div>
+  </section>
+
+  <!-- ================= TREE (pick a tag) ================= -->
+  <section id="screen-tree" class="screen scene-screen tree-screen" hidden>
+    <div class="tree-top">
+      <button type="button" class="btn btn-small btn-on-dark" id="treeBackBtn">← <span class="zh">我不是这个人</span><span class="en">Not me</span></button>
+    </div>
+    <div class="tree-greeting">
+      <h2><span class="zh">你好，<span id="treeName"></span>！</span></h2>
+      <p class="en">Hi <span id="treeNameEn"></span>!</p>
+      <p class="tree-hint"><span class="zh">从圣诞树上挑一个签 🎄</span><span class="en">Pick a tag from the Christmas tree</span></p>
+    </div>
+    <div class="tree-wrap">
+      <svg class="tree-svg" viewBox="0 0 400 500" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="starGlow"><stop offset="0" stop-color="#ffe9a6" stop-opacity=".9"/><stop offset="1" stop-color="#ffe9a6" stop-opacity="0"/></radialGradient>
+        </defs>
+        <ellipse cx="200" cy="476" rx="178" ry="18" fill="#eef3f8" opacity=".92"/>
+        <rect x="179" y="414" width="42" height="56" rx="5" fill="#6b3f1f"/>
+        <g>
+          <rect x="94" y="428" width="56" height="44" rx="4" fill="#c0392b"/>
+          <rect x="118" y="428" width="8" height="44" fill="#f3d48a"/>
+          <rect x="94" y="445" width="56" height="8" fill="#f3d48a"/>
+          <path d="M122 428 q-15 -15 -21 -2 q6 6 21 2 z M122 428 q15 -15 21 -2 q-6 6 -21 2 z" fill="#f3d48a"/>
+          <rect x="236" y="436" width="48" height="36" rx="4" fill="#2a62a8"/>
+          <rect x="256" y="436" width="8" height="36" fill="#f3d48a"/>
+          <rect x="236" y="449" width="48" height="7" fill="#f3d48a"/>
+          <rect x="290" y="450" width="34" height="22" rx="3" fill="#f3d48a"/>
+          <rect x="304" y="450" width="6" height="22" fill="#c0392b"/>
+        </g>
+        <path d="M200 190 L357 410 Q200 448 43 410 Z" fill="#145a35"/>
+        <path d="M200 190 L43 410 Q120 430 200 434 Z" fill="#1d7347" opacity=".55"/>
+        <path d="M200 105 L318 287 Q200 316 82 287 Z" fill="#19693f"/>
+        <path d="M200 105 L82 287 Q140 302 200 305 Z" fill="#248453" opacity=".5"/>
+        <path d="M200 48 L272 168 Q200 190 128 168 Z" fill="#1f7a4d"/>
+        <path d="M200 48 L128 168 Q165 180 200 182 Z" fill="#2c925e" opacity=".5"/>
+        <g fill="none" stroke="#f3d48a" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.5 8">
+          <path d="M136 160 Q205 196 266 154"/>
+          <path d="M96 277 Q200 324 308 268"/>
+          <path d="M58 398 Q200 458 345 392"/>
+        </g>
+        <g>
+          <circle class="tl c1" cx="156" cy="169" r="4.5"/><circle class="tl c2" cx="203" cy="176" r="4.5"/><circle class="tl c3" cx="247" cy="165" r="4.5"/>
+          <circle class="tl c4" cx="121" cy="287" r="4.5"/><circle class="tl c1" cx="173" cy="298" r="4.5"/><circle class="tl c2" cx="226" cy="296" r="4.5"/><circle class="tl c3" cx="282" cy="280" r="4.5"/>
+          <circle class="tl c2" cx="86" cy="409" r="4.5"/><circle class="tl c3" cx="143" cy="423" r="4.5"/><circle class="tl c4" cx="201" cy="426" r="4.5"/><circle class="tl c1" cx="258" cy="420" r="4.5"/><circle class="tl c2" cx="316" cy="404" r="4.5"/>
+        </g>
+        <circle class="star-glow" cx="200" cy="38" r="36" fill="url(#starGlow)"/>
+        <polygon class="star" points="200,12 206.5,29.1 224.7,30 210.5,41.4 215.3,59 200,49 184.7,59 189.5,41.4 175.3,30 193.5,29.1" fill="#ffd34e" stroke="#fff3c4" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <div class="tree-tags" id="treeTags"></div>
     </div>
   </section>
 
