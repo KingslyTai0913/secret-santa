@@ -21,10 +21,12 @@ No install, no sign-up, no server. Works on phones, computers and inside WeChat.
   - **额外限制** Extra exclusions: 比如“今年不要和去年抽到同一个人” / e.g. not the same person as last year
 - ✅ **抽之前就检查**：比如某个家庭超过总人数一半（那就一定会有人抽到自家人），或者名字重复，会直接提示。
   Impossible setups (a family with more than half of everyone, duplicate names…) are caught before drawing.
-- 🤫 **每个人点自己的名字看结果**：先确认“你是 XX 吗？”，看完会标记“已查看”。
-  Everyone taps their own name to see their result; viewed names get a ✓.
-- 🔓 **管理员页面**（可以设密码）：看全部结果，并**自动逐条检查有没有抽错**，还有礼物链、复制结果、重新抽签。
-  Admin page (PIN-protected) shows every pairing **and automatically re-checks every rule**.
+- 🎄 **每个人点自己的名字，再到圣诞树上挑一个签**：选名字要确认两次，防止点错人。
+  Everyone taps their own name (confirmed twice) and picks a tag from a Christmas tree.
+- 🙈 **抽完的名字会从所有人的名单上消失**，别人没法偷看。用免费的 Google Firebase 记录“第几个人已经抽过”，不存名字和结果。
+  Names that have drawn disappear from everyone's list; a free Firebase database stores only which person numbers have drawn.
+- 🔓 **管理员页面**（可以设密码）：看全部结果，并**自动逐条检查有没有抽错**，还有抽签进度（谁抽了、谁还没抽，点错可以重置）、礼物链、复制结果、重新抽签。
+  Admin page (PIN-protected) shows every pairing **and automatically re-checks every rule**, plus who has drawn (with a reset for wrong picks).
 - 🔗 **分享链接**：不在场的家人点开链接，点自己的名字也能看到结果。
   A share link lets family members who aren't there see their own result.
 - 🇨🇳🇬🇧 中英双语同时显示；支持深色模式；所有资料只存在本机。
@@ -83,14 +85,16 @@ Any static host works too, e.g. Netlify Drop.
 
 ## 隐私和安全 · Privacy notes
 
-- 所有资料只保存在这台设备的浏览器里（localStorage），不会上传到任何服务器。
-  Everything is stored in the browser only; nothing is uploaded.
+- 名单和结果只保存在抽签那台设备的浏览器里（localStorage），以及分享链接里。
+  Names and results live only in the organiser's browser and inside the share link.
+- 「谁已经抽过」记录在免费的 Google Firebase 数据库（项目 `family-secret-santa-939c8`）里，只存一个随机的抽签编号和“第几个人”，没有名字、没有结果。数据库规则见 `firestore.rules`。把 `sync-config.js` 改成 `null` 就会关掉这个功能。
+  Firebase stores only a random draw ID and which person numbers have drawn: no names, no results (rules in `firestore.rules`). Set `sync-config.js` to `null` to turn it off.
 - 分享链接里的名字是**打乱编码**过的，一眼看不出谁抽到谁，但它**不是加密**：懂技术的人还是能解开。
   Share links are scrambled, not encrypted.
 - 管理员密码只存“指纹”（hash），不存密码本身；它能防止家人随手点开，但挡不住专门破解的人。
   The admin PIN is stored as a hash. It's a speed bump for family members, not real security.
-- 拿到链接或手机的人，技术上可以点别人的名字。这是给家人玩的，靠大家自觉 😉
-  Anyone holding the link or phone could tap someone else's name. It's for family, so it runs on trust 😉
+- 还没抽的名字，拿到链接的人技术上可以冒充别人先抽。被冒充的人会发现自己的名字不见了，找管理员按「重置」就行。这是给家人玩的，靠大家自觉 😉
+  Someone with the link could still pick another person's name before they do; that person will notice their name is gone, and the organiser can reset it. It's for family, so it runs on trust 😉
 
 ## 开发 · Development
 
@@ -103,6 +107,8 @@ Plain HTML/CSS/JS, no dependencies, no build step.
 | `styles.css` | 样式（含深色模式）Styles incl. dark mode |
 | `santa-core.js` | 抽签、规则检查、分享链接编码（纯函数，可测试）Draw, verification, link encoding |
 | `app.js` | 界面逻辑 UI logic |
+| `sync-config.js` | Firebase 连接设置（只用来记录谁抽过）Firebase settings for the "who has drawn" list |
+| `firestore.rules`, `firebase.json` | 数据库规则：只能存“第几个人抽过”Database rules: only person numbers can be stored |
 | `tests/santa-core.test.js` | 单元测试 Unit tests |
 
 ```bash

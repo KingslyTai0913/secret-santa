@@ -352,6 +352,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
 .modal .modal-text { color: var(--muted); font-size: .95rem; }
 .modal .modal-text .en { display: block; margin: 0; }
 .modal-emoji { font-size: 46px; line-height: 1; }
+.modal-emoji.busy { animation: shake .6s ease-in-out infinite; }
 .modal-actions { display: grid; gap: 8px; margin-top: 4px; }
 .modal-actions .btn { width: 100%; }
 .modal .pin-input { margin: 0 auto; text-align: center; font-size: 1.3rem; }
@@ -528,6 +529,30 @@ body.scene .snow { display: block; opacity: 1; }
 .flip-back { transform: rotateY(180deg); background: #fffaf0; border: 2px solid #f3d48a; align-content: center; gap: 8px; padding: 12px; }
 .flip-back .reveal-name { font-family: var(--font-display); font-weight: 400; font-size: 2.4rem; color: #b3261e; animation: none; }
 .flip-back .reveal-family { animation: none; }
+
+/* Names that were drawn, notes, admin progress */
+.names-note { text-align: center; color: var(--muted); font-size: .95rem; }
+.names-note .en { display: block; margin: 0; }
+.names-note.done { font-family: var(--font-display); font-size: 1.4rem; color: #1d6b45; }
+.names-note.done .en { font-family: var(--font-display-en); font-weight: 700; font-size: .8em; color: inherit; }
+.names-note.warn { color: var(--warn-ink); background: var(--warn-bg); border-radius: 10px; padding: 8px 12px; font-size: .88rem; }
+.mine-box { border-top: 2px dashed var(--line); padding-top: 12px; display: grid; gap: 8px; }
+.mine-box h3 { font-size: .9rem; color: var(--muted); font-weight: 600; }
+.mine-box h3 .en { display: inline; }
+.name-btn.mine { display: grid; gap: 2px; justify-items: center; }
+.name-btn.mine small { font-size: .78rem; font-weight: 600; color: var(--fc); }
+.name-btn.mine small .en { display: block; margin: 0; color: inherit; opacity: .8; }
+.scene-screen .name-btn.mine { padding-top: 12px; background: #f7f0e2; box-shadow: inset 0 0 0 2px var(--fc); }
+.scene-screen .name-btn.mine::before { display: none; }
+.progress-list { display: grid; gap: 12px; }
+.progress-summary .en { display: inline; }
+.progress-family { display: grid; gap: 6px; }
+.progress-family h3 { font-size: .92rem; color: var(--fc); }
+.progress-family ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.progress-family li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 4px 6px 4px 12px; border-radius: 10px; background: var(--surface-2); }
+.progress-family li.drawn > span { color: var(--ok); font-weight: 600; }
+.progress-family .pending { color: var(--muted); font-size: .85rem; }
+.progress-family .pending .en, .progress-family .btn .en { display: inline; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

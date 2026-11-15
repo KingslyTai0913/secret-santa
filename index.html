@@ -141,9 +141,6 @@
 
   <!-- ================= TREE (pick a tag) ================= -->
   <section id="screen-tree" class="screen scene-screen tree-screen" hidden>
-    <div class="tree-top">
-      <button type="button" class="btn btn-small btn-on-dark" id="treeBackBtn">← <span class="zh">我不是这个人</span><span class="en">Not me</span></button>
-    </div>
     <div class="tree-greeting">
       <h2><span class="zh">你好，<span id="treeName"></span>！</span></h2>
       <p class="en">Hi <span id="treeNameEn"></span>!</p>
@@ -211,6 +208,15 @@
       </div>
     </div>
 
+    <div class="card" id="progressCard" hidden>
+      <div class="card-head">
+        <h2 class="card-title stack"><span class="zh">抽签进度</span><span class="en">Who has drawn</span></h2>
+        <button type="button" class="btn btn-small" id="refreshProgressBtn"><span class="zh">刷新</span><span class="en">Refresh</span></button>
+      </div>
+      <p class="hint"><span class="zh">谁已经抽了、谁还没抽。有人点错名字的话，按「重置」就能让那个名字回到大家的名单上。</span><span class="en">See who has drawn. If someone picked the wrong name, "Reset" puts that name back on everyone's list.</span></p>
+      <div id="progressList" class="progress-list"></div>
+    </div>
+
     <div class="card" id="verifyCard"></div>
 
     <div class="card">
@@ -240,7 +246,7 @@
 </main>
 
 <footer class="app-footer wrap">
-  <span class="zh">所有资料只保存在这台设备上，不会上传。</span><span class="en">Everything stays on this device — nothing is uploaded.</span>
+  <span class="zh">名字和抽签结果不会上传，网上只记录“第几个人已经抽过”。</span><span class="en">Names and results are never uploaded; only which people have drawn is recorded.</span>
 </footer>
 
 <!-- Drawing animation -->
@@ -262,6 +268,7 @@
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="santa-core.js"></script>
+<script src="sync-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

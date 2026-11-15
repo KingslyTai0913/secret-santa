@@ -36,7 +36,9 @@
       pinSalt: '',
       demo: false, // true while the untouched sample list is loaded
       draw: null, // { id, at, event, familyNames, people, assignment, rules, method }
-      viewed: {} // { [drawId]: [personIndex, ...] } — per device
+      viewed: {}, // { [drawId]: [personIndex, ...] } — results opened on this device
+      mine: {}, // { [drawId]: [personIndex, ...] } — names chosen on this device
+      pending: {} // { [drawId]: [personIndex, ...] } — choices that could not reach the server yet
     };
   }
   function load() {
@@ -49,6 +51,8 @@
       s.rules = Object.assign(defaultState().rules, s.rules || {});
       if (!Array.isArray(s.rules.exclusions)) s.rules.exclusions = [];
       if (!s.viewed || typeof s.viewed !== 'object') s.viewed = {};
+      if (!s.mine || typeof s.mine !== 'object') s.mine = {};
+      if (!s.pending || typeof s.pending !== 'object') s.pending = {};
       return s;
     } catch (e) {
       return null;
@@ -95,6 +99,90 @@
     const list = getViewed(id);
     if (!list.includes(pi)) { state.viewed[id] = list.concat(pi); save(); }
   }
+
+  /* ================= shared "who has drawn" list (Firebase Firestore, REST) ================= */
+  // Stores only draws/<random draw id>/claims/<person number>. Names and results never leave the link.
+  const Sync = (function () {
+    const cfg = window.SANTA_SYNC || {};
+    const enabled = !!(cfg.projectId && cfg.apiKey) && typeof fetch === 'function';
+    const base = `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/(default)/documents/draws/`;
+    function call(method, path, body) {
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = ctrl && setTimeout(() => ctrl.abort(), 8000);
+      return fetch(base + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(cfg.apiKey), {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: ctrl ? ctrl.signal : undefined
+      }).finally(() => { if (timer) clearTimeout(timer); });
+    }
+    async function list(drawId) {
+      const r = await call('GET', `${drawId}/claims?pageSize=1000&mask.fieldPaths=at`);
+      if (!r.ok) throw new Error('list ' + r.status);
+      const data = await r.json();
+      return new Set((data.documents || []).map((d) => Number(d.name.split('/').pop())).filter(Number.isInteger));
+    }
+    /** 'ok' | 'taken' (someone already chose this name) | 'error' (offline etc.) */
+    async function claim(drawId, pi) {
+      try {
+        const r = await call('POST', `${drawId}/claims?documentId=${pi}`, { fields: { at: { integerValue: String(Date.now()) } } });
+        if (r.ok) return 'ok';
+        return r.status === 409 ? 'taken' : 'error';
+      } catch (e) { return 'error'; }
+    }
+    async function unclaim(drawId, pi) {
+      const r = await call('DELETE', `${drawId}/claims/${pi}`);
+      if (!r.ok) throw new Error('delete ' + r.status);
+    }
+    return { enabled, list, claim, unclaim };
+  })();
+
+  let claims = { id: null, set: null, error: false }; // last known server list for the draw on screen
+  async function refreshClaims(v) {
+    if (!Sync.enabled || !v) return;
+    try {
+      const set = await Sync.list(v.id);
+      claims = { id: v.id, set, error: false };
+      retryPending(v, set);
+    } catch (e) {
+      claims = { id: v.id, set: claims.id === v.id ? claims.set : null, error: true };
+    }
+  }
+  /** Choices made while offline are sent again once the server answers. */
+  function retryPending(v, set) {
+    const waiting = (state.pending[v.id] || []).filter((pi) => !set.has(pi));
+    if (waiting.length !== (state.pending[v.id] || []).length) {
+      state.pending[v.id] = waiting;
+      save();
+    }
+    waiting.forEach((pi) => Sync.claim(v.id, pi).then((res) => {
+      if (res === 'error') return;
+      state.pending[v.id] = (state.pending[v.id] || []).filter((x) => x !== pi);
+      save();
+    }));
+  }
+  /** Names chosen on this device (without the server, the ones whose result was opened here). */
+  function myDraws(v) { return Sync.enabled ? (state.mine[v.id] || []) : getViewed(v.id); }
+  function addMine(id, pi) {
+    const list = state.mine[id] || [];
+    if (!list.includes(pi)) { state.mine[id] = list.concat(pi); save(); }
+  }
+  let pollTimer = null;
+  function setPolling(on) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+    if (!on || !Sync.enabled) return;
+    pollTimer = setInterval(async () => {
+      if (document.hidden) return;
+      await refreshClaims(currentView());
+      if (!$('screen-results').hidden && $('modal').hidden) renderResults();
+    }, 5000);
+  }
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden || !Sync.enabled || $('screen-results').hidden) return;
+    await refreshClaims(currentView());
+    if (!$('screen-results').hidden && $('modal').hidden) renderResults();
+  });
 
   /* ================= UI primitives ================= */
   let modalResolve = null;
@@ -207,6 +295,7 @@
     SCREENS.forEach((s) => { $('screen-' + s).hidden = s !== name; });
     // the pages family members see get the snowy Christmas-night scene
     document.body.classList.toggle('scene', name === 'results' || name === 'tree');
+    setPolling(name === 'results'); // keep the name list fresh while people are choosing
     if (name === 'setup') renderSetup();
     if (name === 'results') renderResults();
     if (name === 'tree') renderTree();
@@ -600,8 +689,6 @@
     $('sharedBanner').hidden = !v.isShared;
     // only offer "back to my own draw" on a device that actually has one
     $('leaveSharedBtn').hidden = !(v.isShared && (state.draw || state.families.some((f) => f.members.length)));
-    // "x of n have looked" only means something when everyone uses this one device
-    $('viewedBox').hidden = v.isShared;
     $('adminBtn').hidden = v.isShared && !v.pinHash; // shared links without a PIN have no admin page
 
     const meta = eventMetaHtml(v.event);
@@ -610,20 +697,43 @@
       ${meta ? `<div class="event-meta">${meta}</div>` : ''}
       ${v.event.note ? `<p class="event-note">${esc(v.event.note)}</p>` : ''}`;
 
+    if (Sync.enabled && claims.id !== v.id) {
+      // wait for the shared list first, so names that were already drawn never flash up
+      $('viewedBox').hidden = true;
+      $('nameGroups').innerHTML = `<p class="names-note">${bi('正在载入名单…', 'Loading names…')}</p>`;
+      refreshClaims(v).then(() => { if (!$('screen-results').hidden) renderResults(); });
+      return;
+    }
+    const remote = Sync.enabled ? claims.set : null; // who has drawn (everyone's phones), or null if unknown
     const viewed = getViewed(v.id);
+    const mine = myDraws(v);
     const n = v.people.length;
-    $('viewedBar').style.width = (100 * viewed.length / n) + '%';
-    $('viewedText').innerHTML = `已查看 ${viewed.length} / ${n}<span class="en">${viewed.length} of ${n} have looked (on this device)</span>`;
+    const done = remote ? remote.size : viewed.length;
+    // a per-device count only means something when everyone shares this one device
+    $('viewedBox').hidden = !remote && v.isShared;
+    $('viewedBar').style.width = (100 * Math.min(done, n) / n) + '%';
+    $('viewedText').innerHTML = remote
+      ? `已经有 ${done} / ${n} 人抽过了<span class="en">${done} of ${n} have drawn</span>`
+      : `已抽 ${done} / ${n}<span class="en">${done} of ${n} have drawn on this device</span>`;
 
+    // names that were already drawn leave the list, so nobody can peek at them
+    const open = (pi) => !mine.includes(pi) && !(remote && remote.has(pi));
     const groups = v.familyNames.map((_, fi) => {
-      const members = v.people.map((p, pi) => ({ p, pi })).filter((x) => x.p.family === fi);
+      const members = v.people.map((p, pi) => ({ p, pi })).filter((x) => x.p.family === fi && open(x.pi));
       if (!members.length) return '';
       return `<div class="name-group ${famClass(fi)}">
         <h3><span class="family-dot" aria-hidden="true"></span>${famHtml(v.familyNames, fi)}</h3>
-        <div class="name-grid">${members.map((x) => `<button type="button" class="name-btn${viewed.includes(x.pi) ? ' viewed' : ''}" data-pi="${x.pi}">${esc(x.p.name)}</button>`).join('')}</div>
+        <div class="name-grid">${members.map((x) => `<button type="button" class="name-btn" data-pi="${x.pi}">${esc(x.p.name)}</button>`).join('')}</div>
       </div>`;
     }).join('');
-    $('nameGroups').innerHTML = groups;
+    const mineHtml = mine.length ? `<div class="mine-box">
+        <h3>${bi('这台手机抽过的', 'Drawn on this phone')}</h3>
+        <div class="name-grid">${mine.map((pi) => `<button type="button" class="name-btn mine ${famClass(v.people[pi].family)}" data-pi="${pi}">${esc(v.people[pi].name)}<small>${viewed.includes(pi) ? bi('再看一次结果', 'See my result') : bi('继续抽签', 'Continue')}</small></button>`).join('')}</div>
+      </div>` : '';
+    const offline = Sync.enabled && claims.error
+      ? `<p class="names-note warn">${bi('暂时连不上网络，已经抽过的名字可能还会显示。', 'Offline right now, so names that were already drawn may still show.')}</p>` : '';
+    const allDone = groups ? '' : `<p class="names-note done">🎉 ${bi('大家都抽完了！', 'Everyone has drawn!')}</p>`;
+    $('nameGroups').innerHTML = offline + groups + allDone + mineHtml;
   }
 
   $('nameGroups').addEventListener('click', (e) => {
@@ -634,7 +744,8 @@
   async function chooseName(pi) {
     const v = currentView();
     const name = esc(v.people[pi].name);
-    if (getViewed(v.id).includes(pi)) {
+    if (myDraws(v).includes(pi)) {
+      if (!getViewed(v.id).includes(pi)) { treePerson = pi; return showScreen('tree'); } // chose, but never opened a tag
       const again = await confirmModal({
         emoji: '👀',
         title: bi(`${name}，你已经抽过了`, `${name}, you've already drawn`),
@@ -643,6 +754,54 @@
       });
       if (again) showReveal(v, pi, false);
       return;
+    }
+    // ask twice, so nobody takes someone else's name by mistake
+    const first = await confirmModal({
+      emoji: '🤔',
+      title: bi(`你是 ${name} 吗？`, `Are you ${name}?`),
+      text: bi('请确认这是你自己的名字。', 'Please check that this is your own name.'),
+      ok: bi('是我', "Yes, it's me"),
+      cancel: bi('不是', 'No')
+    });
+    if (!first) return;
+    const second = await confirmModal({
+      emoji: '⚠️',
+      title: bi(`再确认一次：你真的是 ${name}？`, `Double-check: are you really ${name}?`),
+      text: Sync.enabled
+        ? bi('确定以后，这个名字会从大家的名单上消失，不能再改。', "After this, the name disappears from everyone's list and can't be changed.")
+        : bi('确定以后就不能再改了。', "After this you can't change it."),
+      ok: bi('确定，我要抽签', "Yes, I'm ready to draw"),
+      cancel: bi('取消', 'Cancel')
+    });
+    if (!second) return;
+    if (Sync.enabled) {
+      openModal(`<div class="modal-emoji busy" aria-hidden="true">🎄</div>
+        <p class="modal-text" id="modalTitle">${bi('正在登记，请稍等…', 'Saving your pick…')}</p>`);
+      const res = await Sync.claim(v.id, pi);
+      closeModal(undefined);
+      if (res === 'taken') {
+        await refreshClaims(v);
+        renderResults();
+        return confirmModal({
+          emoji: '😮', cancel: false,
+          title: bi(`${name} 已经抽过了`, `${name} has already drawn`),
+          text: bi('如果这真的是你，而且你还没抽过，请找管理员帮你重置。', "If this really is you and you haven't drawn yet, ask the organiser to reset it.")
+        });
+      }
+      if (res === 'error') {
+        const go = await confirmModal({
+          emoji: '📶',
+          title: bi('网络好像有问题', 'Network problem'),
+          text: bi('现在连不上网络，你的名字暂时不会从别人的名单上消失（连上网以后会自动补上）。要继续抽吗？',
+            "Can't reach the network, so your name won't leave other people's lists yet (it catches up once you're back online). Draw anyway?"),
+          ok: bi('继续抽签', 'Draw anyway'),
+          cancel: bi('稍后再试', 'Try later')
+        });
+        if (!go) return;
+        state.pending[v.id] = (state.pending[v.id] || []).concat(pi);
+      }
+      addMine(v.id, pi);
+      if (res === 'ok' && claims.id === v.id && claims.set) claims.set.add(pi);
     }
     treePerson = pi;
     showScreen('tree');
@@ -734,7 +893,6 @@
     // Whichever tag is picked holds this person's match, fixed when the organiser created the draw.
     setTimeout(() => showReveal(currentView(), treePerson, true), reducedMotion ? 60 : 750);
   });
-  $('treeBackBtn').addEventListener('click', () => showScreen('results'));
 
   $('adminBtn').addEventListener('click', async () => {
     const v = currentView();
@@ -822,10 +980,10 @@
 
     const viewed = getViewed(v.id);
     $('resultTable').innerHTML = `
-      <thead><tr><th>${bi('送礼人', 'Giver')}</th><th></th><th>${bi('收礼人', 'Receiver')}</th><th>${bi('已查看', 'Viewed')}</th></tr></thead>
+      <thead><tr><th>${bi('送礼人', 'Giver')}</th><th></th><th>${bi('收礼人', 'Receiver')}</th><th>${Sync.enabled ? bi('已抽', 'Drawn') : bi('已查看', 'Viewed')}</th></tr></thead>
       <tbody>${v.people.map((p, g) => {
         const r = v.people[v.assignment[g]];
-        return `<tr class="${badPairs.has(g) ? 'problem' : ''}">
+        return `<tr class="${badPairs.has(g) ? 'problem' : ''}" data-pi="${g}">
           <td><span class="person ${famClass(p.family)}"><b>${esc(p.name)}</b><span class="tag">${famHtml(v.familyNames, p.family)}</span></span></td>
           <td class="arrow">→</td>
           <td>${r ? `<span class="person ${famClass(r.family)}"><b>${esc(r.name)}</b><span class="tag">${famHtml(v.familyNames, r.family)}</span></span>` : '?'}</td>
@@ -845,7 +1003,60 @@
     $('redrawBtn').hidden = v.isShared;
     $('editSetupBtn').hidden = v.isShared;
     $('resetAllBtn').hidden = v.isShared;
+    renderProgress(v);
   }
+
+  /** Admin: who has drawn so far (from the shared list), with a reset for wrong picks. */
+  async function renderProgress(v) {
+    $('progressCard').hidden = !Sync.enabled;
+    if (!Sync.enabled) return;
+    $('progressList').innerHTML = `<p class="hint">${bi('正在载入…', 'Loading…')}</p>`;
+    await refreshClaims(v);
+    const now = currentView();
+    if ($('screen-admin').hidden || !now || now.id !== v.id) return;
+    const set = claims.set;
+    if (!set) {
+      $('progressList').innerHTML = `<p class="warn">${bi('连不上网络，等一下再按「刷新」。', 'Offline. Tap "Refresh" in a moment.')}</p>`;
+      return;
+    }
+    $('progressList').innerHTML = `<p class="progress-summary"><b>${set.size} / ${v.people.length}</b> ${bi('人已经抽了', 'have drawn')}</p>` +
+      v.familyNames.map((_, fi) => {
+        const members = v.people.map((p, pi) => ({ p, pi })).filter((x) => x.p.family === fi);
+        if (!members.length) return '';
+        return `<div class="progress-family ${famClass(fi)}"><h3>${famHtml(v.familyNames, fi)}</h3><ul>` +
+          members.map((x) => set.has(x.pi)
+            ? `<li class="drawn"><span>✓ ${esc(x.p.name)}</span><button type="button" class="btn btn-small btn-ghost" data-reset="${x.pi}">${bi('重置', 'Reset')}</button></li>`
+            : `<li><span>○ ${esc(x.p.name)}</span><span class="pending">${bi('还没抽', 'Not yet')}</span></li>`).join('') +
+          '</ul></div>';
+      }).join('');
+    document.querySelectorAll('#resultTable tbody tr').forEach((tr) => {
+      const cell = tr.querySelector('.seen');
+      if (cell) cell.textContent = set.has(Number(tr.dataset.pi)) ? '✓' : '';
+    });
+  }
+  $('refreshProgressBtn').addEventListener('click', () => renderProgress(currentView()));
+  $('progressList').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-reset]');
+    if (!b) return;
+    const v = currentView();
+    const pi = Number(b.dataset.reset);
+    const name = esc(v.people[pi].name);
+    const ok = await confirmModal({
+      emoji: '↩️',
+      title: bi(`把 ${name} 放回名单？`, `Put ${name} back on the list?`),
+      text: bi('有人点错名字的时候用。重置后，这个名字会重新出现在大家的名单上，可以再抽一次（抽到的人不会变）。',
+        "Use this if someone picked the wrong name. The name comes back on everyone's list so it can be drawn again (the match stays the same)."),
+      ok: bi('重置', 'Reset')
+    });
+    if (!ok) return;
+    try {
+      await Sync.unclaim(v.id, pi);
+      toast(bi('已重置', 'Reset done') + ' ✓');
+    } catch (err) {
+      toast(bi('重置失败，请检查网络', 'Reset failed, check the connection'));
+    }
+    renderProgress(v);
+  });
 
   function shareLink(v) {
     if (v.isShared) return location.href.split('#')[0].split('?')[0] + '#d=' + S.extractShareCode(location.href);
