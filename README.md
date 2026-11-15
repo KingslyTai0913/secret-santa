@@ -1,5 +1,7 @@
 # 🎁 家庭交换礼物抽签 · Family Secret Santa
 
+**🌐 网址 · Live:** https://kingslytai0913.github.io/secret-santa/
+
 一个给**多个家庭**一起玩的 Secret Santa 抽签网页：**同一个家庭的人不会互相抽到**。
 不用安装、不用注册、不需要服务器，手机、电脑、微信里都能直接打开。
 
