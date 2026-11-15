@@ -755,56 +755,59 @@
       if (again) showReveal(v, pi, false);
       return;
     }
-    // ask twice, so nobody takes someone else's name by mistake
-    const first = await confirmModal({
+    const ok = await confirmModal({
       emoji: '🤔',
       title: bi(`你是 ${name} 吗？`, `Are you ${name}?`),
-      text: bi('请确认这是你自己的名字。', 'Please check that this is your own name.'),
+      text: Sync.enabled
+        ? bi('请确认这是你自己的名字哦。抽完以后，这个名字会从大家的名单上消失。', "Please check that this is your own name. Once you draw, it disappears from everyone's list.")
+        : bi('请确认这是你自己的名字哦。', 'Please check that this is your own name.'),
       ok: bi('是我', "Yes, it's me"),
       cancel: bi('不是', 'No')
     });
-    if (!first) return;
-    const second = await confirmModal({
-      emoji: '⚠️',
-      title: bi(`再确认一次：你真的是 ${name}？`, `Double-check: are you really ${name}?`),
-      text: Sync.enabled
-        ? bi('确定以后，这个名字会从大家的名单上消失，不能再改。', "After this, the name disappears from everyone's list and can't be changed.")
-        : bi('确定以后就不能再改了。', "After this you can't change it."),
-      ok: bi('确定，我要抽签', "Yes, I'm ready to draw"),
-      cancel: bi('取消', 'Cancel')
-    });
-    if (!second) return;
-    if (Sync.enabled) {
-      openModal(`<div class="modal-emoji busy" aria-hidden="true">🎄</div>
-        <p class="modal-text" id="modalTitle">${bi('正在登记，请稍等…', 'Saving your pick…')}</p>`);
-      const res = await Sync.claim(v.id, pi);
-      closeModal(undefined);
-      if (res === 'taken') {
-        await refreshClaims(v);
-        renderResults();
-        return confirmModal({
-          emoji: '😮', cancel: false,
-          title: bi(`${name} 已经抽过了`, `${name} has already drawn`),
-          text: bi('如果这真的是你，而且你还没抽过，请找管理员帮你重置。', "If this really is you and you haven't drawn yet, ask the organiser to reset it.")
-        });
-      }
-      if (res === 'error') {
-        const go = await confirmModal({
-          emoji: '📶',
-          title: bi('网络好像有问题', 'Network problem'),
-          text: bi('现在连不上网络，你的名字暂时不会从别人的名单上消失（连上网以后会自动补上）。要继续抽吗？',
-            "Can't reach the network, so your name won't leave other people's lists yet (it catches up once you're back online). Draw anyway?"),
-          ok: bi('继续抽签', 'Draw anyway'),
-          cancel: bi('稍后再试', 'Try later')
-        });
-        if (!go) return;
-        state.pending[v.id] = (state.pending[v.id] || []).concat(pi);
-      }
-      addMine(v.id, pi);
-      if (res === 'ok' && claims.id === v.id && claims.set) claims.set.add(pi);
-    }
+    if (!ok) return;
     treePerson = pi;
     showScreen('tree');
+  }
+
+  /**
+   * At the moment a tag is picked: record on the shared list that person pi has drawn, so the
+   * name leaves everyone's list. `pending` is the claim request already on its way.
+   * Returns false if the draw should not go ahead.
+   */
+  async function claimForDraw(v, pi, pending) {
+    if (!Sync.enabled || myDraws(v).includes(pi)) return true;
+    let res = await Promise.race([pending, new Promise((r) => setTimeout(() => r('slow'), 400))]);
+    if (res === 'slow') {
+      openModal(`<div class="modal-emoji busy" aria-hidden="true">🎄</div>
+        <p class="modal-text" id="modalTitle">${bi('正在登记，请稍等…', 'Saving your pick…')}</p>`);
+      res = await pending;
+      closeModal(undefined);
+    }
+    const name = esc(v.people[pi].name);
+    if (res === 'taken') {
+      await refreshClaims(v);
+      await confirmModal({
+        emoji: '😮', cancel: false,
+        title: bi(`${name} 已经抽过了`, `${name} has already drawn`),
+        text: bi('如果这真的是你，而且你还没抽过，请找管理员帮你重置。', "If this really is you and you haven't drawn yet, ask the organiser to reset it.")
+      });
+      return false;
+    }
+    if (res === 'error') {
+      const go = await confirmModal({
+        emoji: '📶',
+        title: bi('网络好像有问题', 'Network problem'),
+        text: bi('现在连不上网络，你的名字暂时不会从别人的名单上消失（连上网以后会自动补上）。要继续抽吗？',
+          "Can't reach the network, so your name won't leave other people's lists yet (it catches up once you're back online). Draw anyway?"),
+        ok: bi('继续抽签', 'Draw anyway'),
+        cancel: bi('稍后再试', 'Try later')
+      });
+      if (!go) return false;
+      state.pending[v.id] = (state.pending[v.id] || []).concat(pi);
+    }
+    addMine(v.id, pi);
+    if (res === 'ok' && claims.id === v.id && claims.set) claims.set.add(pi);
+    return true;
   }
 
   /**
@@ -880,19 +883,26 @@
         aria-label="签 ${i + 1} · Tag ${i + 1}"><span class="string"></span><span class="tag-body">签</span></button>`).join('');
   }
 
-  $('treeTags').addEventListener('click', (e) => {
+  $('treeTags').addEventListener('click', async (e) => {
     const tag = e.target.closest('.hang-tag');
     const box = $('treeTags');
     if (!tag || box.classList.contains('picking')) return;
     box.classList.add('picking');
+    const v = currentView();
+    const pi = treePerson;
+    // tell the shared list right away; the tag's flight covers the wait
+    const pending = Sync.enabled && !myDraws(v).includes(pi) ? Sync.claim(v.id, pi) : Promise.resolve('ok');
     // fly the chosen tag to the middle of the screen, then turn it over
     const r = tag.getBoundingClientRect();
     tag.style.setProperty('--tx', (window.innerWidth / 2 - (r.left + r.width / 2)) + 'px');
     tag.style.setProperty('--ty', (window.innerHeight / 2 - (r.top + r.height / 2)) + 'px');
     tag.classList.add('picked');
+    await new Promise((res) => setTimeout(res, reducedMotion ? 60 : 750));
+    if (!(await claimForDraw(v, pi, pending))) return showScreen('results');
     // Whichever tag is picked holds this person's match, fixed when the organiser created the draw.
-    setTimeout(() => showReveal(currentView(), treePerson, true), reducedMotion ? 60 : 750);
+    showReveal(v, pi, true);
   });
+  $('treeBackBtn').addEventListener('click', () => showScreen('results'));
 
   $('adminBtn').addEventListener('click', async () => {
     const v = currentView();
