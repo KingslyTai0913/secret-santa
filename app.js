@@ -1193,6 +1193,14 @@
   });
 
   /* ================= start ================= */
+  // Festive fonts load in the background, so a slow or blocked font server never holds up the page.
+  (function loadFonts() {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=ZCOOL+KuaiLe&display=swap';
+    document.head.appendChild(link);
+  })();
+
   function buildLights() {
     const n = Math.max(12, Math.round(window.innerWidth / 30));
     if ($('lights').children.length !== n) $('lights').innerHTML = '<span class="bulb"></span>'.repeat(n);
