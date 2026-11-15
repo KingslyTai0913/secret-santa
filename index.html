@@ -27,6 +27,19 @@
 
 <main class="wrap" id="main">
 
+  <!-- ================= LOCKED (organiser only) ================= -->
+  <section id="screen-locked" class="screen" hidden>
+    <div class="card locked-card">
+      <div class="modal-emoji" aria-hidden="true">🔒</div>
+      <h2 class="card-title stack"><span class="zh">管理员专用</span><span class="en">Organiser only</span></h2>
+      <p class="hint"><span class="zh">这里是管理员设置抽签的地方，需要密码。如果你是来抽签的，请打开管理员发给你的链接。</span><span class="en">This is where the organiser sets up the draw, so it needs a password. If you're here to draw, open the link the organiser sent you.</span></p>
+      <div class="row-actions locked-actions">
+        <button type="button" class="btn btn-primary" id="lockedPinBtn">🔑 <span class="zh">输入管理员密码</span><span class="en">Enter admin password</span></button>
+        <button type="button" class="btn btn-ghost" id="lockedDrawBtn" hidden>🎄 <span class="zh">去抽签页面</span><span class="en">Go to the draw page</span></button>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= SETUP ================= -->
   <section id="screen-setup" class="screen" hidden>
 
@@ -98,13 +111,6 @@
         </div>
         <ul id="exList" class="ex-list"></ul>
       </details>
-    </div>
-
-    <div class="card">
-      <h2 class="card-title stack"><span class="zh">管理员密码</span><span class="en">Admin PIN</span></h2>
-      <p class="hint"><span class="zh">抽签后要输入这个密码，才能查看所有人的结果、重新抽签。不设密码的话，谁都可以点「管理员」查看。</span><span class="en">After the draw, this PIN is needed to see everyone's results or redraw. Without a PIN, anyone can open the admin page.</span></p>
-      <input id="adminPin" class="pin-input" type="password" inputmode="numeric" autocomplete="new-password" maxlength="20" placeholder="例如 e.g. 1225">
-      <p class="hint small" id="pinStatus"></p>
     </div>
 
     <div id="setupErrors" class="errors" role="alert"></div>
@@ -271,6 +277,7 @@
 
 <script src="santa-core.js"></script>
 <script src="sync-config.js"></script>
+<script src="admin-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

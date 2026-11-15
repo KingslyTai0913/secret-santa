@@ -3,6 +3,10 @@
   'use strict';
   const S = window.SantaCore;
   const STORE_KEY = 'familySecretSanta.v1';
+  // Admin password: admin-config.js holds only a salted fingerprint (null there = no password).
+  const ADMIN = window.SANTA_ADMIN && window.SANTA_ADMIN.hash ? window.SANTA_ADMIN : null;
+  const checkAdmin = (pin) => !ADMIN || S.hashPin(pin, ADMIN.salt) === ADMIN.hash;
+  let organizerUnlocked = false; // the password was entered in this visit
   const $ = (id) => document.getElementById(id);
   const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -289,7 +293,7 @@
   }
 
   /* ================= routing ================= */
-  const SCREENS = ['setup', 'results', 'tree', 'admin'];
+  const SCREENS = ['locked', 'setup', 'results', 'tree', 'admin'];
   function showScreen(name) {
     if (name !== 'admin') adminUnlocked = false; // re-lock whenever admin page is left
     SCREENS.forEach((s) => { $('screen-' + s).hidden = s !== name; });
@@ -299,6 +303,7 @@
     if (name === 'setup') renderSetup();
     if (name === 'results') renderResults();
     if (name === 'tree') renderTree();
+    if (name === 'locked') renderLocked();
     if (name === 'admin') renderAdmin();
     renderHeader(name);
     window.scrollTo(0, 0);
@@ -307,7 +312,7 @@
     const v = name === 'setup' ? null : currentView();
     $('eventLine').textContent = v ? v.event.name : state.event.name;
   }
-  function route() {
+  async function route() {
     const code = S.extractShareCode(location.href);
     shared = null;
     if (code) {
@@ -317,19 +322,27 @@
         return showScreen('results');
       }
       clearUrl();
-      confirmModal({
+      showScreen('locked');
+      await confirmModal({
         emoji: '😕', cancel: false,
         title: bi('这个链接打不开', "This link doesn't work"),
         text: bi('链接可能复制不完整。请让管理员重新发一次。', 'The link may be incomplete. Ask the organiser to send it again.')
       });
-      return showScreen(state.draw ? 'results' : 'setup');
     }
-    if (!state.draw) return showScreen('setup');
-    // This device created the draw, so it is the organiser's: reopen on the admin page (behind the PIN if set)
-    if (!state.pinHash) return showScreen('admin');
-    showScreen('results');
-    askPin(currentView()).then((ok) => { if (ok) showScreen('admin'); });
+    openOrganizer();
   }
+  /** The organiser's pages (setup / admin) are behind the admin password. */
+  async function openOrganizer() {
+    if (!ADMIN || organizerUnlocked) return showScreen(state.draw ? 'admin' : 'setup');
+    showScreen('locked');
+    if (await askPin()) {
+      organizerUnlocked = true;
+      showScreen(state.draw ? 'admin' : 'setup');
+    }
+  }
+  function renderLocked() { $('lockedDrawBtn').hidden = !state.draw; }
+  $('lockedPinBtn').addEventListener('click', () => openOrganizer());
+  $('lockedDrawBtn').addEventListener('click', () => showScreen('results'));
   function clearUrl() {
     try { history.replaceState(null, '', location.href.split('#')[0].split('?')[0]); } catch (e) { location.hash = ''; }
   }
@@ -343,9 +356,7 @@
     $('evNote').value = state.event.note;
     $('ruleNoSwap').checked = !!state.rules.noReciprocal;
     $('ruleLoop').checked = !!state.rules.singleLoop;
-    $('adminPin').value = '';
     renderFamilies();
-    renderPinStatus();
     refreshDerived();
   }
 
@@ -514,30 +525,6 @@
   $('ruleNoSwap').addEventListener('change', () => { state.rules.noReciprocal = $('ruleNoSwap').checked; save(); renderValidation(); });
   $('ruleLoop').addEventListener('change', () => { state.rules.singleLoop = $('ruleLoop').checked; save(); renderValidation(); });
 
-  /* ---- admin PIN (only a salted hash is stored) ---- */
-  $('adminPin').addEventListener('input', () => {
-    const v = $('adminPin').value.trim();
-    if (!v) return; // empty field keeps the existing PIN; use "remove" to clear
-    if (!state.pinSalt) state.pinSalt = S.newId();
-    state.pinHash = S.hashPin(v, state.pinSalt);
-    save();
-    renderPinStatus();
-  });
-  function renderPinStatus() {
-    $('pinStatus').innerHTML = state.pinHash
-      ? `${bi('✓ 已设置管理员密码。输入新密码就会替换旧的。', '✓ Admin PIN is set. Typing a new one replaces it.')}
-         <button type="button" class="btn btn-link" id="clearPinBtn">${bi('清除密码', 'Remove PIN')}</button>`
-      : bi('还没有设置密码。', 'No PIN set yet.');
-  }
-  $('pinStatus').addEventListener('click', (e) => {
-    if (e.target.closest('#clearPinBtn')) {
-      state.pinHash = '';
-      state.pinSalt = '';
-      $('adminPin').value = '';
-      save();
-      renderPinStatus();
-    }
-  });
 
   /* ---- extra exclusions ---- */
   function allPeople() {
@@ -637,20 +624,6 @@
       toast(bi('请先处理红色的提示', 'Please fix the issue in red'));
       return $('setupErrors').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    if (!state.pinHash) {
-      const go = await confirmModal({
-        emoji: '🔓',
-        title: bi('还没有设置管理员密码', 'No admin PIN yet'),
-        text: bi('没有密码的话，拿到手机的人都能点「管理员」看到全部结果。确定不设密码吗？',
-          'Without a PIN, anyone holding the phone can open "Admin" and see every result. Continue without one?'),
-        ok: bi('不用密码，直接抽签', 'Draw without a PIN'),
-        cancel: bi('我去设置密码', "I'll set a PIN")
-      });
-      if (!go) {
-        $('adminPin').focus();
-        return $('adminPin').scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }
     const res = S.draw(v.people, state.rules);
     if (!res.assignment) {
       return confirmModal({
@@ -689,7 +662,7 @@
     $('sharedBanner').hidden = !v.isShared;
     // only offer "back to my own draw" on a device that actually has one
     $('leaveSharedBtn').hidden = !(v.isShared && (state.draw || state.families.some((f) => f.members.length)));
-    $('adminBtn').hidden = v.isShared && !v.pinHash; // shared links without a PIN have no admin page
+    $('adminBtn').hidden = v.isShared && !ADMIN; // without an admin password, shared links get no admin page
 
     const meta = eventMetaHtml(v.event);
     $('eventCard').innerHTML = `
@@ -905,10 +878,8 @@
   $('treeBackBtn').addEventListener('click', () => showScreen('results'));
 
   $('adminBtn').addEventListener('click', async () => {
-    const v = currentView();
-    if (v.pinHash) {
-      const ok = await askPin(v);
-      if (!ok) return;
+    if (ADMIN) {
+      if (!(await askPin())) return;
     } else {
       const ok = await confirmModal({
         emoji: '🔓',
@@ -918,15 +889,15 @@
       });
       if (!ok) return;
     }
+    organizerUnlocked = true;
     showScreen('admin');
-    adminUnlocked = true;
   });
 
-  function askPin(v) {
+  function askPin() {
     return openModal(`
       <div class="modal-emoji" aria-hidden="true">🔒</div>
-      <h2 id="modalTitle">${bi('输入管理员密码', 'Enter the admin PIN')}</h2>
-      <input class="pin-input" id="pinTry" type="password" inputmode="numeric" autocomplete="off" maxlength="20" aria-label="管理员密码 Admin PIN">
+      <h2 id="modalTitle">${bi('输入管理员密码', 'Enter the admin password')}</h2>
+      <input class="pin-input" id="pinTry" type="password" inputmode="numeric" autocomplete="off" maxlength="20" aria-label="管理员密码 Admin password">
       <p class="err-inline" id="pinErr"></p>
       <div class="modal-actions">
         <button type="button" class="btn btn-primary" id="pinOk">${bi('确定', 'OK')}</button>
@@ -934,8 +905,8 @@
       </div>`, (root) => {
       const input = root.querySelector('#pinTry');
       const submit = () => {
-        if (S.hashPin(input.value, v.pinSalt) === v.pinHash) return closeModal(true);
-        root.querySelector('#pinErr').innerHTML = bi('密码不对，再试一次。', 'Wrong PIN, try again.');
+        if (checkAdmin(input.value)) return closeModal(true);
+        root.querySelector('#pinErr').innerHTML = bi('密码不对，再试一次。', 'Wrong password, try again.');
         input.value = '';
         input.focus();
       };
@@ -1076,8 +1047,7 @@
         e: { n: v.event.name, b: v.event.budget, d: v.event.date, o: v.event.note },
         f: v.familyNames.map((fn, fi) => [fn, v.people.filter((p) => p.family === fi).map((p) => p.name)]),
         a: v.assignment,
-        r: { nr: v.rules.noReciprocal ? 1 : 0, sl: v.rules.singleLoop ? 1 : 0, x: v.rules.exclusions || [] },
-        ph: v.pinHash, ps: v.pinSalt
+        r: { nr: v.rules.noReciprocal ? 1 : 0, sl: v.rules.singleLoop ? 1 : 0, x: v.rules.exclusions || [] }
       };
       shareCache = { id: v.id, code: S.encodeShare(payload) };
     }

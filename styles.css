@@ -532,6 +532,10 @@ body.scene .snow { display: block; opacity: 1; }
 .flip-back .reveal-name { font-family: var(--font-display); font-weight: 400; font-size: 2.4rem; color: #b3261e; animation: none; }
 .flip-back .reveal-family { animation: none; }
 
+/* Organiser-only lock screen */
+.locked-card { text-align: center; justify-items: center; padding-block: 28px; }
+.locked-actions { justify-content: center; }
+
 /* Names that were drawn, notes, admin progress */
 .names-note { text-align: center; color: var(--muted); font-size: .95rem; }
 .names-note .en { display: block; margin: 0; }

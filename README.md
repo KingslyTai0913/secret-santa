@@ -25,7 +25,7 @@ No install, no sign-up, no server. Works on phones, computers and inside WeChat.
   Everyone taps their own name (confirmed twice) and picks a tag from a Christmas tree.
 - 🙈 **抽完的名字会从所有人的名单上消失**，别人没法偷看。用免费的 Google Firebase 记录“第几个人已经抽过”，不存名字和结果。
   Names that have drawn disappear from everyone's list; a free Firebase database stores only which person numbers have drawn.
-- 🔓 **管理员页面**（可以设密码）：看全部结果，并**自动逐条检查有没有抽错**，还有抽签进度（谁抽了、谁还没抽，点错可以重置）、礼物链、复制结果、重新抽签。
+- 🔓 **管理员页面**（需要密码）：看全部结果，并**自动逐条检查有没有抽错**，还有抽签进度（谁抽了、谁还没抽，点错可以重置）、礼物链、复制结果、重新抽签。
   Admin page (PIN-protected) shows every pairing **and automatically re-checks every rule**, plus who has drawn (with a reset for wrong picks).
 - 🔗 **分享链接**：不在场的家人点开链接，点自己的名字也能看到结果。
   A share link lets family members who aren't there see their own result.
@@ -38,8 +38,8 @@ No install, no sign-up, no server. Works on phones, computers and inside WeChat.
    Open `index.html` (double-click) or the hosted URL.
 2. **填名单** — 给每个家庭起名字（比如“王家”），加入成员。可以一次粘贴多个名字，用逗号、顿号或换行分开。点「填入示例」可以先试玩。
    Name each family and add members (paste several names at once). "Try a demo" fills in sample data.
-3. **设管理员密码**（建议）→ 点 **🎁 抽签并生成链接**。
-   Set an admin PIN (recommended) → tap **Draw & create the link**.
+3. 点 **🎁 抽签并生成链接**。打开网站首页要先输入**管理员密码**，程序里只存密码的“指纹”（在 `admin-config.js`，改密码的方法写在那个文件里）。
+   Tap **Draw & create the link**. The organiser pages need the **admin password**; only its fingerprint is stored (in `admin-config.js`, which also says how to change it).
 4. **发链接**：管理员页面最上面就是链接，点「复制群消息」发到家庭群。⚠️ 网页要先放到网上（见下一节），直接双击打开的本地文件生成的链接，别人打不开。
    **Send the link** at the top of the admin page to the family chat. ⚠️ The page must be online first (next section).
 5. **每个人**：打开链接 → 选自己的名字 → 在 **🎄 圣诞树**上挑一个签 → 签翻过来，看到要送礼物给谁。
@@ -107,6 +107,7 @@ Plain HTML/CSS/JS, no dependencies, no build step.
 | `styles.css` | 样式（含深色模式）Styles incl. dark mode |
 | `santa-core.js` | 抽签、规则检查、分享链接编码（纯函数，可测试）Draw, verification, link encoding |
 | `app.js` | 界面逻辑 UI logic |
+| `admin-config.js` | 管理员密码的“指纹”（不存密码本身）Admin password fingerprint (never the password) |
 | `sync-config.js` | Firebase 连接设置（只用来记录谁抽过）Firebase settings for the "who has drawn" list |
 | `firestore.rules`, `firebase.json` | 数据库规则：只能存“第几个人抽过”Database rules: only person numbers can be stored |
 | `tests/santa-core.test.js` | 单元测试 Unit tests |
